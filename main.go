@@ -147,7 +147,7 @@ func main() {
 	}
 	fmt.Printf("Using driver (source DB): %s target-db: %s\n", driverName, targetDb)
 
-	ioHelper := conversion.NewIOStreams(driverName, dumpFilePath, dumpFileLocation)
+	ioHelper := conversion.NewIOStreams(driverName, dumpFilePath)
 
 	var project, instance string
 	if !schemaOnly {
