@@ -47,7 +47,6 @@ var (
 	skipForeignKeys  bool
 	sessionJSON      string
 	webapi           bool
-	dumpFileLocation string
 	dumpFilePath     string
 	targetDb         = conversion.TARGET_SPANNER
 )
@@ -65,7 +64,6 @@ func setupGlobalFlags() {
 	flag.BoolVar(&skipForeignKeys, "skip-foreign-keys", false, "skip-foreign-keys: if true, skip creating foreign keys after data migration is complete (ddl statements for foreign keys can still be found in the downloaded schema.ddl.txt file and the same can be applied separately)")
 	flag.StringVar(&sessionJSON, "session", "", "session: specifies the file we restore session state from (used in data-only to provide schema and data mapping)")
 	flag.BoolVar(&webapi, "web", false, "web: run the web interface (experimental)")
-	flag.StringVar(&dumpFileLocation, "dump-file-location", "local", "dump-file-location: location of dump file to process (gcs of local)")
 	flag.StringVar(&dumpFilePath, "dump-file", "", "dump-file: path of dump file to process")
 	flag.StringVar(&targetDb, "target-db", conversion.TARGET_SPANNER, "target-db: Specifies the target DB. Defaults to spanner")
 }
