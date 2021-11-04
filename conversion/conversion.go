@@ -364,7 +364,8 @@ func NewIOStreams(driver string, dumpFile string) IOStreams {
 	io := IOStreams{In: os.Stdin, Out: os.Stdout}
 	u, err := url.Parse(dumpFile)
 	if err != nil {
-		panic(err)
+		fmt.Printf("parseFilePath: unable parse file path for dumpfile %s", dumpFile)
+		log.Fatal(err)
 	}
 
 	if (driver == PGDUMP || driver == MYSQLDUMP) && dumpFile != "" {
