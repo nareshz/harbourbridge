@@ -68,16 +68,6 @@ func setupGlobalFlags() {
 	flag.StringVar(&targetDb, "target-db", conversion.TARGET_SPANNER, "target-db: Specifies the target DB. Defaults to spanner")
 }
 
-<<<<<<< HEAD
-func didSetVerboseTwice() bool {
-	numTimesSet := 0
-	flag.Visit(func(f *flag.Flag) {
-		if f.Name == "v" || f.Name == "verbose" {
-			numTimesSet++
-		}
-	})
-	return numTimesSet > 1
-=======
 func didSetVerboseTwice() bool{
 	numTimesSet := 0
 	flag.Visit(func(f *flag.Flag) {
@@ -86,7 +76,6 @@ func didSetVerboseTwice() bool{
         }
     })
     return numTimesSet > 1
->>>>>>> 16092e4 (added -verbose flag to meet gcloud criteria (#205))
 }
 
 func usage() {
@@ -135,11 +124,7 @@ func main() {
 	if didSetVerboseTwice() {
 		panic(fmt.Errorf("cannot set both -v and -verbose flags"))
 	}
-<<<<<<< HEAD
-
-=======
 	
->>>>>>> 16092e4 (added -verbose flag to meet gcloud criteria (#205))
 	internal.VerboseInit(verbose)
 	if schemaOnly && dataOnly {
 		panic(fmt.Errorf("can't use both schema-only and data-only modes at once"))
