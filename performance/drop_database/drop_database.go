@@ -21,12 +21,17 @@ func main() {
 	}
 	defer db.Close()
 
+	// Drop MySQL database.
 	_, err = db.Exec("DROP DATABASE IF EXISTS " + dbName)
 	if err != nil {
 		panic(err)
 	}
-	err = os.Remove("records.csv")
-	if err != nil {
-		log.Fatalln("failed to delete file", err)
+
+	// Delete the csv file.
+	if _, err := os.Stat("records.csv"); err == nil {
+		err = os.Remove("records.csv")
+		if err != nil {
+			log.Fatalln("failed to delete file", err)
+		}
 	}
 }
