@@ -21,6 +21,7 @@ type SchemaAndDataCmd struct {
 	targetProfile   string
 	skipForeignKeys bool
 	filePrefix      string // TODO: move filePrefix to global flags
+	writeLimit      int64
 }
 
 // Name returns the name of operation.
@@ -52,6 +53,7 @@ func (cmd *SchemaAndDataCmd) SetFlags(f *flag.FlagSet) {
 	f.StringVar(&cmd.targetProfile, "target-profile", "", "Flag for specifying connection profile for target database e.g., \"dialect=postgresql\"")
 	flag.BoolVar(&cmd.skipForeignKeys, "skip-foreign-keys", false, "Skip creating foreign keys after data migration is complete (ddl statements for foreign keys can still be found in the downloaded schema.ddl.txt file and the same can be applied separately)")
 	f.StringVar(&cmd.filePrefix, "prefix", "", "File prefix for generated files")
+	f.Int64Var(&cmd.writeLimit, "write-limit", 40, "Write limit for writes to spanner")
 }
 
 func (cmd *SchemaAndDataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
@@ -86,11 +88,11 @@ func (cmd *SchemaAndDataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...
 		defer ioHelper.In.Close()
 	}
 
-	now := time.Now()
+	schemaConversionStartTime := time.Now()
 
 	// If filePrefix not explicitly set, use dbName as prefix.
 	if cmd.filePrefix == "" {
-		dbName, err := conversion.GetDatabaseName(driverName, now)
+		dbName, err := conversion.GetDatabaseName(driverName, schemaConversionStartTime)
 		if err != nil {
 			panic(fmt.Errorf("can't generate database name for prefix: %v", err))
 		}
@@ -105,11 +107,11 @@ func (cmd *SchemaAndDataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...
 		panic(err)
 	}
 
-	conversion.WriteSchemaFile(conv, now, cmd.filePrefix+schemaFile, ioHelper.Out)
+	conversion.WriteSchemaFile(conv, schemaConversionStartTime, cmd.filePrefix+schemaFile, ioHelper.Out)
 	conversion.WriteSessionFile(conv, cmd.filePrefix+sessionFile, ioHelper.Out)
 	conversion.Report(driverName, nil, ioHelper.BytesRead, "", conv, cmd.filePrefix+reportFile, ioHelper.Out)
 
-	project, instance, dbName, err := getResourceIds(ctx, targetProfile, now, driverName, ioHelper.Out)
+	project, instance, dbName, err := getResourceIds(ctx, targetProfile, schemaConversionStartTime, driverName, ioHelper.Out)
 	if err != nil {
 		return subcommands.ExitUsageError
 	}
@@ -134,7 +136,10 @@ func (cmd *SchemaAndDataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...
 		return subcommands.ExitFailure
 	}
 
-	bw, err := conversion.DataConv(driverName, sqlConnectionStr, &ioHelper, client, conv, true, schemaSampleSize)
+	schemaCoversionEndTime := time.Now()
+	conv.SchemaConversionDuration = schemaCoversionEndTime.Sub(schemaConversionStartTime)
+
+	bw, err := conversion.DataConv(driverName, sqlConnectionStr, &ioHelper, client, conv, true, schemaSampleSize, cmd.writeLimit)
 	if err != nil {
 		err = fmt.Errorf("can't finish data conversion for db %s: %v", dbURI, err)
 		return subcommands.ExitFailure
@@ -145,7 +150,10 @@ func (cmd *SchemaAndDataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...
 			return subcommands.ExitFailure
 		}
 	}
-	banner := conversion.GetBanner(now, dbURI)
+
+	dataCoversionEndTime := time.Now()
+	conv.DataConversionDuration = dataCoversionEndTime.Sub(schemaCoversionEndTime)
+	banner := conversion.GetBanner(schemaConversionStartTime, dbURI)
 	conversion.Report(driverName, bw.DroppedRowsByTable(), ioHelper.BytesRead, banner, conv, cmd.filePrefix+reportFile, ioHelper.Out)
 	conversion.WriteBadData(bw, conv, banner, cmd.filePrefix+badDataFile, ioHelper.Out)
 	return subcommands.ExitSuccess

@@ -99,10 +99,10 @@ func SchemaConv(driver, sqlConnectionStr, targetDb string, ioHelper *IOStreams, 
 //  - Driver is DynamoDB or a dump file mode.
 //  - This function is called as part of the legacy global CLI flag mode. (This string is constructed from env variables later on)
 // When using source-profile, the sqlConnectionStr and schemaSampleSize are constructed from the input params.
-func DataConv(driver, sqlConnectionStr string, ioHelper *IOStreams, client *sp.Client, conv *internal.Conv, dataOnly bool, schemaSampleSize int64) (*spanner.BatchWriter, error) {
+func DataConv(driver, sqlConnectionStr string, ioHelper *IOStreams, client *sp.Client, conv *internal.Conv, dataOnly bool, schemaSampleSize int64, writeLimit int64) (*spanner.BatchWriter, error) {
 	config := spanner.BatchWriterConfig{
 		BytesLimit: 100 * 1000 * 1000,
-		WriteLimit: 40,
+		WriteLimit: writeLimit,
 		RetryLimit: 1000,
 		Verbose:    internal.Verbose(),
 	}

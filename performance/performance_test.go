@@ -138,10 +138,6 @@ func TestIntegration_MYSQLDUMP_Command(t *testing.T) {
 	}
 }
 
-func TestIntegration_MYSQL_Command_Hello(t *testing.T) {
-	print("Hello")
-}
-
 func TestIntegration_MYSQL_LoadSampleData(t *testing.T) {
 	host, user, password, port := os.Getenv("MYSQLHOST"), os.Getenv("MYSQLUSER"), os.Getenv("MYSQLPWD"), os.Getenv("MYSQLPORT")
 	connString := conversion.GetMYSQLConnectionStr(host, port, user, password, "")
