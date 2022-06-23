@@ -15,8 +15,10 @@
 package common
 
 import (
+	"context"
 	"fmt"
 
+	sp "cloud.google.com/go/spanner"
 	"github.com/cloudspannerecosystem/harbourbridge/internal"
 	"github.com/cloudspannerecosystem/harbourbridge/schema"
 	"github.com/cloudspannerecosystem/harbourbridge/spanner/ddl"
@@ -34,6 +36,8 @@ type InfoSchema interface {
 	GetForeignKeys(conv *internal.Conv, table SchemaAndName) (foreignKeys []schema.ForeignKey, err error)
 	GetIndexes(conv *internal.Conv, table SchemaAndName) ([]schema.Index, error)
 	ProcessData(conv *internal.Conv, srcTable string, srcSchema schema.Table, spTable string, spCols []string, spSchema ddl.CreateTable) error
+	StartChangeDataCapture(ctx context.Context, conv *internal.Conv) (map[string]interface{}, error)
+	StartStreamingMigration(ctx context.Context, client *sp.Client, conv *internal.Conv, streamInfo map[string]interface{}) error
 }
 
 // SchemaAndName contains the schema and name for a table
@@ -72,8 +76,20 @@ func ProcessSchema(conv *internal.Conv, infoSchema InfoSchema) error {
 // 'db'. For each table, we extract and convert the data to Spanner data
 // (based on the source and Spanner schemas), and write it to Spanner.
 // If we can't get/process data for a table, we skip that table and process
-// the remaining tables.
-func ProcessData(conv *internal.Conv, infoSchema InfoSchema) {
+// the remaining tables. When performing streaming migration, it starts
+// the change data capture for storing changes on source database before
+// snapshot migration and processes changes stored after snapshot migration.
+func ProcessData(ctx context.Context, client *sp.Client, conv *internal.Conv, infoSchema InfoSchema) error {
+	streamInfo, err := infoSchema.StartChangeDataCapture(ctx, conv)
+	if err != nil {
+		return err
+	}
+	performSnapshotMigration(conv, infoSchema)
+	err = infoSchema.StartStreamingMigration(ctx, client, conv, streamInfo)
+	return err
+}
+
+func performSnapshotMigration(conv *internal.Conv, infoSchema InfoSchema) {
 	// Tables are ordered in alphabetical order with one exception: interleaved
 	// tables appear after the population of their parent table.
 	orderTableNames := ddl.OrderTables(conv.SpSchema)

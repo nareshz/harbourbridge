@@ -15,6 +15,7 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"math/big"
@@ -323,8 +324,10 @@ func TestProcessData(t *testing.T) {
 		func(table string, cols []string, vals []interface{}) {
 			rows = append(rows, spannerData{table: table, cols: cols, vals: vals})
 		})
-	common.ProcessData(conv, InfoSchemaImpl{db})
+	ctx := context.Background()
+	err := common.ProcessData(ctx, nil, conv, InfoSchemaImpl{db})
 
+	assert.Nil(t, err)
 	assert.Equal(t,
 		[]spannerData{
 			spannerData{table: "te_st", cols: []string{"a a", " b", " c "}, vals: []interface{}{float64(42.3), int64(3), "cat"}},
@@ -459,7 +462,9 @@ func TestConvertSqlRow_MultiCol(t *testing.T) {
 		func(table string, cols []string, vals []interface{}) {
 			rows = append(rows, spannerData{table: table, cols: cols, vals: vals})
 		})
-	common.ProcessData(conv, InfoSchemaImpl{db})
+	ctx := context.Background()
+	err = common.ProcessData(ctx, nil, conv, InfoSchemaImpl{db})
+	assert.Nil(t, err)
 	assert.Equal(t, []spannerData{
 		{table: "test", cols: []string{"a", "b", "synth_id"}, vals: []interface{}{"cat", float64(42.3), int64(0)}},
 		{table: "test", cols: []string{"a", "c", "synth_id"}, vals: []interface{}{"dog", int64(22), int64(-9223372036854775808)}}},

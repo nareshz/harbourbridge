@@ -287,3 +287,24 @@ func LaunchDataflowJob(ctx context.Context, targetProfile profiles.TargetProfile
 		" will have to be manually cleaned up via he UI. HarbourBridge will not delete them post completion of the migration.")
 	return nil
 }
+
+func StartDatastream(ctx context.Context, sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile) (StreamingCfg, error) {
+	streamingCfg, err := ReadStreamingConfig(sourceProfile.Conn.Mysql.StreamingConfig, targetProfile.Conn.Sp.Dbname)
+	if err != nil {
+		return streamingCfg, fmt.Errorf("error reading streaming config: %v", err)
+	}
+
+	err = LaunchStream(ctx, sourceProfile, targetProfile.Conn.Sp.Project, streamingCfg.DatastreamCfg)
+	if err != nil {
+		return streamingCfg, fmt.Errorf("error launching stream: %v", err)
+	}
+	return streamingCfg, nil
+}
+
+func StartDataflow(ctx context.Context, sourceProfile profiles.SourceProfile, targetProfile profiles.TargetProfile, streamingCfg StreamingCfg) error {
+	err := LaunchDataflowJob(ctx, targetProfile, streamingCfg.DatastreamCfg, streamingCfg.DataflowCfg)
+	if err != nil {
+		return fmt.Errorf("error launching dataflow: %v", err)
+	}
+	return nil
+}
