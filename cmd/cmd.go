@@ -124,7 +124,7 @@ func CommandLine(ctx context.Context, driver, targetDb, dbURI string, dataOnly, 
 	}
 	banner := utils.GetBanner(now, dbURI)
 	conversion.Report(driver, bw.DroppedRowsByTable(), ioHelper.BytesRead, banner, conv, outputFilePrefix+reportFile, ioHelper.Out)
-	conversion.WriteBadData(bw, conv, banner, outputFilePrefix+badDataFile, ioHelper.Out)
+	conversion.WriteBadData(bw, conv, banner, driver, outputFilePrefix+badDataFile, ioHelper.Out)
 	// Cleanup hb tmp data directory.
 	os.RemoveAll(os.TempDir() + constants.HB_TMP_DIR)
 	return nil

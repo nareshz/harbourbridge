@@ -93,6 +93,26 @@ Sample usage:
 harbourbridge schema -source=dynamodb -source-profile="schema-sample-size=500000,aws-access-key-id=<>,..."
 ```
 
+## DynamoDB Streaming Migration Usage
+
+### Note
+- DynamoDB Streams will be used for Change Data Capture in streaming migration.
+- If there exists any DynamoDB Stream for a given table, then it must be of StreamViewType
+`NEW_IMAGE` or `NEW_AND_OLD_IMAGES`. If this condition is not followed then this table will
+not be considered for streaming migration.
+
+### Steps
+
+1. Start the streaming migration.
+```sh
+harbourbridge schema-and-data -source=dynamodb -source-profile="aws-access-key-id=<>,...,enableStreaming=<>" -target-profile="instance=my-spanner-instance,..."
+```
+Valid choices for enableStreaming: `yes`, `no`, `true`, `false`
+**Regular Updates**: Count of records processed and if the current moment is optimum for switching to Cloud Spanner or not will be update regularly at an interval of 1 minute.
+
+2. If you want to switch to Cloud Spanner then stop the writes on original database and press Ctrl+C to let the remaining records within DynamoDB Streams get processed.
+3. After receiving full migration completed message, switch to Cloud Spanner.
+
 ## Schema Conversion
 
 The HarbourBridge tool maps DynamoDB types to Spanner types as follows:
