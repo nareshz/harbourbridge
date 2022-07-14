@@ -201,7 +201,7 @@ func (cmd *DataCmd) Execute(ctx context.Context, f *flag.FlagSet, _ ...interface
 
 	banner := utils.GetBanner(now, dbURI)
 	conversion.Report(sourceProfile.Driver, bw.DroppedRowsByTable(), ioHelper.BytesRead, banner, conv, cmd.filePrefix+reportFile, ioHelper.Out)
-	conversion.WriteBadData(bw, conv, banner, cmd.filePrefix+badDataFile, ioHelper.Out)
+	conversion.WriteBadData(bw, conv, banner, sourceProfile.Driver, cmd.filePrefix+badDataFile, ioHelper.Out)
 	// Cleanup hb tmp data directory.
 	os.RemoveAll(os.TempDir() + constants.HB_TMP_DIR)
 	return subcommands.ExitSuccess
