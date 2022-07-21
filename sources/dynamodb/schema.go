@@ -93,28 +93,27 @@ func (isi InfoSchemaImpl) GetColumns(conv *internal.Conv, table common.SchemaAnd
 }
 
 func (isi InfoSchemaImpl) GetRowsFromTable(conv *internal.Conv, srcTable string) (interface{}, error) {
-	var lastEvaluatedKey map[string]*dynamodb.AttributeValue
-	for {
-		// Build the query input parameters.
-		params := &dynamodb.ScanInput{
-			TableName: aws.String(srcTable),
-		}
-		if lastEvaluatedKey != nil {
-			params.ExclusiveStartKey = lastEvaluatedKey
-		}
+	var scanResult []map[string]*dynamodb.AttributeValue
 
+	// Build the query input parameters.
+	params := &dynamodb.ScanInput{
+		TableName: aws.String(srcTable),
+	}
+	for {
 		// Make the DynamoDB Query API call.
 		result, err := isi.DynamoClient.Scan(params)
 		if err != nil {
 			return nil, fmt.Errorf("failed to make Query API call for table %v: %v", srcTable, err)
 		}
-
+		scanResult = append(scanResult, result.Items...)
 		if result.LastEvaluatedKey == nil {
-			return result.Items, nil
+			break
+		} else {
+			// If there are more rows, then continue.
+			params.ExclusiveStartKey = result.LastEvaluatedKey
 		}
-		// If there are more rows, then continue.
-		lastEvaluatedKey = result.LastEvaluatedKey
 	}
+	return scanResult, nil
 }
 
 func (isi InfoSchemaImpl) GetRowCount(table common.SchemaAndName) (int64, error) {
