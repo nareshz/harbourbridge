@@ -35,12 +35,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	awsSession "github.com/aws/aws-sdk-go/aws/session"
+	dydb "github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/cloudspannerecosystem/harbourbridge/common/constants"
 	"github.com/cloudspannerecosystem/harbourbridge/common/utils"
 	"github.com/cloudspannerecosystem/harbourbridge/conversion"
 	"github.com/cloudspannerecosystem/harbourbridge/internal"
 	"github.com/cloudspannerecosystem/harbourbridge/profiles"
 	"github.com/cloudspannerecosystem/harbourbridge/sources/common"
+	"github.com/cloudspannerecosystem/harbourbridge/sources/dynamodb"
 	"github.com/cloudspannerecosystem/harbourbridge/sources/mysql"
 	"github.com/cloudspannerecosystem/harbourbridge/sources/oracle"
 	"github.com/cloudspannerecosystem/harbourbridge/sources/postgres"
@@ -74,20 +78,37 @@ var mysqlTypeMap = make(map[string][]typeIssue)
 var postgresTypeMap = make(map[string][]typeIssue)
 var sqlserverTypeMap = make(map[string][]typeIssue)
 var oracleTypeMap = make(map[string][]typeIssue)
+var dynamodbTypeMap = make(map[string][]typeIssue)
 
 // TODO:(searce) organize this file according to go style guidelines: generally
 // have public constants and public type definitions first, then public
 // functions, and finally helper functions (usually in order of importance).
 
-// driverConfig contains the parameters needed to make a direct database connection. It is
+// sqlConfig contains the parameters needed to make a direct sql database connection. It is
 // used to communicate via HTTP with the frontend.
-type driverConfig struct {
+type sqlConfig struct {
 	Driver   string `json:"Driver"`
 	Host     string `json:"Host"`
 	Port     string `json:"Port"`
 	Database string `json:"Database"`
 	User     string `json:"User"`
 	Password string `json:"Password"`
+}
+
+// dydbConfig contains the parameters needed to make a direct Dynamodb database connection. It is
+// used to communicate via HTTP with the frontend.
+type dydbConfig struct {
+	Driver          string `json:"Driver"`
+	AccessKeyID     string `json:"AccessKeyID"`
+	SecretAccessKey string `json:"SecretAccessKey"`
+	Region          string `json:"Region"`
+	Endpoint        string `json:"Endpoint"`
+	SampleSize      string `json:"SampleSize"`
+}
+
+// driverDetails contains the driver information.
+type driverDetails struct {
+	Driver string `json:"Driver"`
 }
 
 // databaseConnection creates connection with database when using
@@ -98,48 +119,104 @@ func databaseConnection(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Body Read Error : %v", err), http.StatusInternalServerError)
 		return
 	}
-	var config driverConfig
-	err = json.Unmarshal(reqBody, &config)
+	var driver driverDetails
+	err = json.Unmarshal(reqBody, &driver)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Request Body parse error : %v", err), http.StatusBadRequest)
 		return
 	}
-	var dataSourceName string
-	switch config.Driver {
-	case constants.POSTGRES:
-		dataSourceName = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", config.Host, config.Port, config.User, config.Password, config.Database)
-	case constants.MYSQL:
-		dataSourceName = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", config.User, config.Password, config.Host, config.Port, config.Database)
-	case constants.SQLSERVER:
-		dataSourceName = fmt.Sprintf(`sqlserver://%s:%s@%s:%s?database=%s`, config.User, config.Password, config.Host, config.Port, config.Database)
-	case constants.ORACLE:
-		portNumber, _ := strconv.Atoi(config.Port)
-		dataSourceName = go_ora.BuildUrl(config.Host, portNumber, config.Database, config.User, config.Password, nil)
-	default:
-		http.Error(w, fmt.Sprintf("Driver : '%s' is not supported", config.Driver), http.StatusBadRequest)
-		return
-	}
-	sourceDB, err := sql.Open(config.Driver, dataSourceName)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Database connection error, check connection properties."), http.StatusInternalServerError)
-		return
-	}
-	// Open doesn't open a connection. Validate database connection.
-	err = sourceDB.Ping()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Database connection error, check connection properties."), http.StatusInternalServerError)
-		return
-	}
 
-	sessionState := session.GetSessionState()
-	sessionState.SourceDB = sourceDB
-	sessionState.DbName = config.Database
-	// schema and user is same in oralce.
-	if config.Driver == constants.ORACLE {
-		sessionState.DbName = config.User
+	if driver.Driver != constants.DYNAMODB {
+		var config sqlConfig
+		err = json.Unmarshal(reqBody, &config)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Request Body parse error : %v", err), http.StatusBadRequest)
+			return
+		}
+		var dataSourceName string
+		switch config.Driver {
+		case constants.POSTGRES:
+			dataSourceName = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", config.Host, config.Port, config.User, config.Password, config.Database)
+		case constants.MYSQL:
+			dataSourceName = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", config.User, config.Password, config.Host, config.Port, config.Database)
+		case constants.SQLSERVER:
+			dataSourceName = fmt.Sprintf(`sqlserver://%s:%s@%s:%s?database=%s`, config.User, config.Password, config.Host, config.Port, config.Database)
+		case constants.ORACLE:
+			portNumber, _ := strconv.Atoi(config.Port)
+			dataSourceName = go_ora.BuildUrl(config.Host, portNumber, config.Database, config.User, config.Password, nil)
+		default:
+			http.Error(w, fmt.Sprintf("Driver : '%s' is not supported", config.Driver), http.StatusBadRequest)
+			return
+		}
+		sourceDB, err := sql.Open(config.Driver, dataSourceName)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Database connection error, check connection properties."), http.StatusInternalServerError)
+			return
+		}
+		// Open doesn't open a connection. Validate database connection.
+		err = sourceDB.Ping()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Database connection error, check connection properties."), http.StatusInternalServerError)
+			return
+		}
+
+		sessionState := session.GetSessionState()
+		sessionState.SourceDB = sourceDB
+		sessionState.DbName = config.Database
+		// schema and user is same in oralce.
+		if config.Driver == constants.ORACLE {
+			sessionState.DbName = config.User
+		}
+		sessionState.Driver = config.Driver
+		sessionState.SessionFile = ""
+	} else {
+		var config dydbConfig
+		err = json.Unmarshal(reqBody, &config)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Request Body parse error : %v", err), http.StatusBadRequest)
+			return
+		}
+
+		// Set the environment variables for Dynamodb connection.
+		if config.AccessKeyID != "" {
+			os.Setenv("AWS_ACCESS_KEY_ID", config.AccessKeyID)
+		}
+		if config.SecretAccessKey != "" {
+			os.Setenv("AWS_SECRET_ACCESS_KEY", config.SecretAccessKey)
+		}
+		if config.Region != "" {
+			os.Setenv("AWS_REGION", config.Region)
+		}
+		if config.Endpoint != "" {
+			os.Setenv("DYNAMODB_ENDPOINT_OVERRIDE", config.Endpoint)
+		}
+		fmt.Println("Direct Connection called.")
+		cfg := aws.Config{}
+		endpointOverride := os.Getenv("DYNAMODB_ENDPOINT_OVERRIDE")
+		if endpointOverride != "" {
+			cfg.Endpoint = aws.String(endpointOverride)
+		}
+		mySession := awsSession.Must(awsSession.NewSession())
+		dydbClient := dydb.New(mySession, &cfg)
+
+		// Testing if client is valid or not.
+		testInput := &dydb.ListTablesInput{}
+		_, err = dydbClient.ListTables(testInput)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Database connection error, check connection properties."), http.StatusInternalServerError)
+			return
+		}
+
+		sessionState := session.GetSessionState()
+		sessionState.SourceDB = dydbClient
+		sessionState.SampleSize, err = strconv.ParseInt(config.SampleSize, 10, 64)
+		if err != nil {
+			sessionState.SampleSize = 100000
+		}
+		sessionState.DbName = "dydb-database"
+		sessionState.Driver = config.Driver
+		sessionState.SessionFile = ""
 	}
-	sessionState.Driver = config.Driver
-	sessionState.SessionFile = ""
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -157,13 +234,15 @@ func convertSchemaSQL(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch sessionState.Driver {
 	case constants.MYSQL:
-		err = common.ProcessSchema(conv, mysql.InfoSchemaImpl{DbName: sessionState.DbName, Db: sessionState.SourceDB})
+		err = common.ProcessSchema(conv, mysql.InfoSchemaImpl{DbName: sessionState.DbName, Db: sessionState.SourceDB.(*sql.DB)})
 	case constants.POSTGRES:
-		err = common.ProcessSchema(conv, postgres.InfoSchemaImpl{Db: sessionState.SourceDB})
+		err = common.ProcessSchema(conv, postgres.InfoSchemaImpl{Db: sessionState.SourceDB.(*sql.DB)})
 	case constants.SQLSERVER:
-		err = common.ProcessSchema(conv, sqlserver.InfoSchemaImpl{DbName: sessionState.DbName, Db: sessionState.SourceDB})
+		err = common.ProcessSchema(conv, sqlserver.InfoSchemaImpl{DbName: sessionState.DbName, Db: sessionState.SourceDB.(*sql.DB)})
 	case constants.ORACLE:
-		err = common.ProcessSchema(conv, oracle.InfoSchemaImpl{DbName: strings.ToUpper(sessionState.DbName), Db: sessionState.SourceDB})
+		err = common.ProcessSchema(conv, oracle.InfoSchemaImpl{DbName: strings.ToUpper(sessionState.DbName), Db: sessionState.SourceDB.(*sql.DB)})
+	case constants.DYNAMODB:
+		err = common.ProcessSchema(conv, dynamodb.InfoSchemaImpl{DynamoClient: sessionState.SourceDB.(*dydb.DynamoDB), SampleSize: sessionState.SampleSize})
 	default:
 		http.Error(w, fmt.Sprintf("Driver : '%s' is not supported", sessionState.Driver), http.StatusBadRequest)
 		return
@@ -367,6 +446,8 @@ func getTypeMap(w http.ResponseWriter, r *http.Request) {
 		typeMap = sqlserverTypeMap
 	case constants.ORACLE:
 		typeMap = oracleTypeMap
+	case constants.DYNAMODB:
+		typeMap = dynamodbTypeMap
 	default:
 		http.Error(w, fmt.Sprintf("Driver : '%s' is not supported", sessionState.Driver), http.StatusBadRequest)
 		return
@@ -1631,6 +1712,16 @@ func init() {
 			l = addTypeToList(ty.Name, spType, issues, l)
 		}
 		oracleTypeMap[srcType] = l
+	}
+
+	// Initialize dynamodbTypeMap.
+	for _, srcType := range []string{typeString, typeBool, typeNumber, typeNumberString, typeBinary, typeList, typeMap, typeStringSet, typeNumberSet, typeNumberStringSet, typeBinarySet} {
+		var l []typeIssue
+		for _, spType := range []string{ddl.Bool, ddl.Bytes, ddl.Date, ddl.Float64, ddl.Int64, ddl.String, ddl.Timestamp, ddl.Numeric} {
+			ty, issues := toSpannerTypeDynamoDB(srcType)
+			l = addTypeToList(ty.Name, spType, issues, l)
+		}
+		dynamodbTypeMap[srcType] = l
 	}
 
 	sessionState.Conv = internal.MakeConv()

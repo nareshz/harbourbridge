@@ -60,31 +60,31 @@ describe('DirectConnectionComponent', () => {
     engine?.setValue('mysql')
     expect(engine?.invalid).toBeFalsy()
 
-    let host = component.connectForm.get('hostName')
+    let host = component.connectFormSql.get('hostName')
     host?.setValue('')
     expect(host?.invalid).toBeTruthy()
     host?.setValue('104.45.67.00')
     expect(host?.invalid).toBeFalsy()
 
-    let port = component.connectForm.get('port')
+    let port = component.connectFormSql.get('port')
     port?.setValue('')
     expect(port?.invalid).toBeTruthy()
     port?.setValue('1433')
     expect(port?.invalid).toBeFalsy()
 
-    let user = component.connectForm.get('userName')
+    let user = component.connectFormSql.get('userName')
     user?.setValue('')
     expect(user?.invalid).toBeTruthy()
     user?.setValue('sa')
     expect(user?.invalid).toBeFalsy()
 
-    let pass = component.connectForm.get('password')
+    let pass = component.connectFormSql.get('password')
     pass?.setValue('')
     expect(pass?.invalid).toBeTruthy()
     pass?.setValue('23143')
     expect(pass?.invalid).toBeFalsy()
 
-    let dbname = component.connectForm.get('dbName')
+    let dbname = component.connectFormSql.get('dbName')
     dbname?.setValue('')
     expect(dbname?.invalid).toBeTruthy()
     dbname?.setValue('mysql')
@@ -109,9 +109,8 @@ describe('DirectConnectionComponent', () => {
     host?.setValue('')
     expect(component.connectForm.invalid).toBeTruthy()
 
-    component.connectForm.patchValue({
+    component.connectFormSql.patchValue({
       hostName: 'localhost',
-      dbEngine: 'mssql',
       port: '1433',
       userName: 'sa',
       password: 'password',

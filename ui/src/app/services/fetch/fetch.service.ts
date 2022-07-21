@@ -1,6 +1,7 @@
 import { HttpClient, HttpResponse } from '@angular/common/http'
 import { Injectable } from '@angular/core'
 import IDbConfig from 'src/app/model/db-config'
+import DydbConfig from 'src/app/model/dydb-config'
 import ISession, { ISaveSessionPayload } from '../../model/session'
 import IUpdateTable from '../../model/update-table'
 import IConv, { ICreateIndex, IInterleaveStatus, IPrimaryKey } from '../../model/conv'
@@ -15,7 +16,7 @@ export class FetchService {
   private url: string = 'http://localhost:8080'
   constructor(private http: HttpClient) {}
 
-  connectTodb(payload: IDbConfig) {
+  connectToSql(payload: IDbConfig) {
     const { dbEngine, hostName, port, dbName, userName, password } = payload
     return this.http.post<HttpResponse<null>>(
       `${this.url}/connect`,
@@ -26,6 +27,22 @@ export class FetchService {
         Database: dbName,
         User: userName,
         Password: password,
+      },
+      { observe: 'response' }
+    )
+  }
+
+  connectToDydb(payload: DydbConfig) {
+    const { dbEngine, awsAccessKeyID, awsSecretAccessKey, awsRegion, dydbEndpoint, schemaSampleSize } = payload
+    return this.http.post<HttpResponse<null>>(
+      `${this.url}/connect`,
+      {
+        Driver: dbEngine,
+        AccessKeyID: awsAccessKeyID,
+        SecretAccessKey: awsSecretAccessKey,
+        Region: awsRegion,
+        Endpoint: dydbEndpoint,
+        SampleSize: schemaSampleSize,
       },
       { observe: 'response' }
     )

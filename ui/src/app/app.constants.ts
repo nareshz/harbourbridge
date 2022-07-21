@@ -16,6 +16,7 @@ export enum SourceDbNames {
   Postgres = 'Postgres',
   SQLServer = 'SQL Server',
   Oracle = 'Oracle',
+  DynamoDB = 'DynamoDB',
 }
 
 export enum ObjectExplorerNodeType {

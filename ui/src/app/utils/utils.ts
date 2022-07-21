@@ -13,5 +13,8 @@ export function extractSourceDbName(srcDbName: string) {
   if (srcDbName === 'sqlserver') {
     return SourceDbNames.SQLServer
   }
+  if (srcDbName === 'dynamodb') {
+    return SourceDbNames.DynamoDB
+  }
   return srcDbName
 }
