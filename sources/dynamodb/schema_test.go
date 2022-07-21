@@ -675,6 +675,9 @@ func TestInfoSchemaImpl_GetColumns(t *testing.T) {
 				},
 			},
 		},
+		{
+			Items: []map[string]*dynamodb.AttributeValue{},
+		},
 	}
 
 	conv := internal.MakeConv()
@@ -694,6 +697,39 @@ func TestInfoSchemaImpl_GetColumns(t *testing.T) {
 	assert.Equal(t, map[string]schema.Column{
 		"a": {Name: "a", Type: schema.Type{Name: "String", Mods: []int64(nil), ArrayBounds: []int64(nil)}, NotNull: true, Ignored: schema.Ignored{Check: false, Identity: false, Default: false, Exclusion: false, ForeignKey: false, AutoIncrement: false}},
 		"b": {Name: "b", Type: schema.Type{Name: "String", Mods: []int64(nil), ArrayBounds: []int64(nil)}, NotNull: false, Ignored: schema.Ignored{Check: false, Identity: false, Default: false, Exclusion: false, ForeignKey: false, AutoIncrement: false}}},
+		colDefs)
+
+	describeTableOutputs := []dynamodb.DescribeTableOutput{
+		{
+			Table: &dynamodb.TableDescription{
+				AttributeDefinitions: []*dynamodb.AttributeDefinition{
+					{
+						AttributeName: aws.String("attrS"),
+						AttributeType: aws.String("S"),
+					},
+					{
+						AttributeName: aws.String("attrN"),
+						AttributeType: aws.String("N"),
+					},
+					{
+						AttributeName: aws.String("attrB"),
+						AttributeType: aws.String("B"),
+					},
+				},
+			},
+		},
+	}
+	client.describeTableOutputs = describeTableOutputs
+	colDefs, colNames, err = isi.GetColumns(conv, dySchema, nil, nil)
+	assert.Nil(t, err)
+	expectColNames = []string{
+		"attrB", "attrN", "attrS",
+	}
+	assert.ElementsMatch(t, expectColNames, colNames)
+	assert.Equal(t, map[string]schema.Column{
+		"attrB": {Name: "attrB", Type: schema.Type{Name: "Binary", Mods: []int64(nil), ArrayBounds: []int64(nil)}, NotNull: true, Ignored: schema.Ignored{Check: false, Identity: false, Default: false, Exclusion: false, ForeignKey: false, AutoIncrement: false}},
+		"attrN": {Name: "attrN", Type: schema.Type{Name: "Number", Mods: []int64(nil), ArrayBounds: []int64(nil)}, NotNull: true, Ignored: schema.Ignored{Check: false, Identity: false, Default: false, Exclusion: false, ForeignKey: false, AutoIncrement: false}},
+		"attrS": {Name: "attrS", Type: schema.Type{Name: "String", Mods: []int64(nil), ArrayBounds: []int64(nil)}, NotNull: true, Ignored: schema.Ignored{Check: false, Identity: false, Default: false, Exclusion: false, ForeignKey: false, AutoIncrement: false}}},
 		colDefs)
 }
 

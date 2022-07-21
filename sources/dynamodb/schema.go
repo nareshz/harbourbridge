@@ -89,7 +89,11 @@ func (isi InfoSchemaImpl) GetColumns(conv *internal.Conv, table common.SchemaAnd
 	if err != nil {
 		return nil, nil, err
 	}
-	return inferDataTypes(stats, count, primaryKeys)
+	if count == 0 {
+		return inferPrimaryKeyTypes(isi.DynamoClient, table.Name)
+	} else {
+		return inferDataTypes(stats, count, primaryKeys)
+	}
 }
 
 func (isi InfoSchemaImpl) GetRowsFromTable(conv *internal.Conv, srcTable string) (interface{}, error) {
@@ -343,6 +347,43 @@ func incTypeCount(attrName string, attr *dynamodb.AttributeValue, s map[string]i
 type statItem struct {
 	Type  string
 	Count int64
+}
+
+func inferPrimaryKeyTypes(client dynamodbiface.DynamoDBAPI, tableName string) (map[string]schema.Column, []string, error) {
+	colDefs := make(map[string]schema.Column)
+	var colNames []string
+
+	describeTableInput := &dynamodb.DescribeTableInput{
+		TableName: &tableName,
+	}
+	result, err := client.DescribeTable(describeTableInput)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, attr := range result.Table.AttributeDefinitions {
+		col := *attr.AttributeName
+
+		var attrType string
+		switch *attr.AttributeType {
+		case "S":
+			attrType = typeString
+		case "N":
+			attrType = typeNumber
+		case "B":
+			attrType = typeBinary
+		default:
+			return nil, nil, fmt.Errorf("error! this datatype is not supported for creating dynamodb table")
+		}
+
+		colNames = append(colNames, col)
+		colDefs[col] = schema.Column{Name: col, Type: schema.Type{Name: attrType}, NotNull: true}
+	}
+
+	// Sort column names in increasing order, because the server may return them
+	// in a random order.
+	sort.Strings(colNames)
+	return colDefs, colNames, nil
 }
 
 func inferDataTypes(stats map[string]map[string]int64, rows int64, primaryKeys []string) (map[string]schema.Column, []string, error) {
